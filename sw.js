@@ -2,7 +2,7 @@
 // (it's writing to a live spreadsheet) so POST requests and cross-origin
 // calls to the Apps Script API are never intercepted here — only this
 // site's own static files get cached, for instant repeat loads.
-const CACHE_NAME = 'attendance-shell-v1';
+const CACHE_NAME = 'attendance-shell-v2';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -40,7 +40,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-first, not cache-first: a stale cached app.js after a deploy is
+  // exactly what silently broke login earlier (it kept POSTing to an old
+  // API URL baked into the cached copy). Falling back to cache only when
+  // the network is unavailable still gets offline load working, without
+  // ever preferring stale code over fresh code while online.
   event.respondWith(
-    caches.match(req).then((cached) => cached || fetch(req))
+    fetch(req)
+      .then((res) => {
+        const clone = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, clone));
+        return res;
+      })
+      .catch(() => caches.match(req))
   );
 });
