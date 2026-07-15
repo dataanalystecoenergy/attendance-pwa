@@ -181,6 +181,7 @@ let cameraStream = null;
 let capturedImageDataUrl = null;
 let serverTimeOffsetMs = 0; // serverTime - Date.now(), refreshed each time the camera opens
 let clockIntervalId = null;
+let currentFacingMode = 'environment'; // 'environment' = back camera, 'user' = front/selfie
 
 async function syncServerTime() {
   try {
@@ -219,6 +220,14 @@ function drawTimestampOverlay(ctx, width, height, text) {
   ctx.fillText(text, 14, height - bannerHeight / 2);
 }
 
+async function startVideoStream() {
+  cameraStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: currentFacingMode } },
+    audio: false,
+  });
+  document.getElementById('cameraVideo').srcObject = cameraStream;
+}
+
 async function openCamera() {
   document.getElementById('cameraError').style.display = 'none';
 
@@ -228,10 +237,7 @@ async function openCamera() {
   }
 
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false,
-    });
+    await startVideoStream();
   } catch (err) {
     console.log('Camera unavailable, falling back to file upload:', err.message);
     useFallbackUpload();
@@ -240,8 +246,6 @@ async function openCamera() {
 
   await syncServerTime();
 
-  const video = document.getElementById('cameraVideo');
-  video.srcObject = cameraStream;
   document.getElementById('cameraModal').style.display = 'flex';
 
   const updateClock = () => {
@@ -249,6 +253,31 @@ async function openCamera() {
   };
   updateClock();
   clockIntervalId = setInterval(updateClock, 1000);
+}
+
+// Swaps front/back and restarts the stream on the same open modal - the
+// clock overlay keeps ticking throughout, only the video source changes.
+async function flipCamera() {
+  const previousFacingMode = currentFacingMode;
+  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+
+  try {
+    await startVideoStream();
+  } catch (err) {
+    console.log('Could not switch camera, reverting:', err.message);
+    currentFacingMode = previousFacingMode;
+    try {
+      await startVideoStream(); // restore the previous camera so the preview isn't left dead
+    } catch (e2) {
+      document.getElementById('cameraError').textContent = 'Could not access the camera.';
+      document.getElementById('cameraError').style.display = 'block';
+    }
+  }
 }
 
 function stopCamera() {
@@ -291,6 +320,7 @@ function validatePhoto() {
 
 document.getElementById('openCameraBtn').addEventListener('click', openCamera);
 document.getElementById('cameraCancelBtn').addEventListener('click', stopCamera);
+document.getElementById('cameraFlipBtn').addEventListener('click', flipCamera);
 document.getElementById('retakePhotoBtn').addEventListener('click', () => {
   resetPhoto();
   openCamera();
