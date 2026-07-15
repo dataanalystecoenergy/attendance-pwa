@@ -286,8 +286,15 @@ async function openCamera() {
 
 // Cycles to the next known camera device. Restarts the stream on the same
 // open modal - the clock overlay keeps ticking throughout.
+let isFlipping = false; // guards against a second tap racing the first mid-switch
+
 async function flipCamera() {
-  if (videoDeviceIds.length < 2) return;
+  if (videoDeviceIds.length < 2 || isFlipping) return;
+  isFlipping = true;
+
+  const flipBtn = document.getElementById('cameraFlipBtn');
+  flipBtn.disabled = true;
+  flipBtn.classList.add('flipping');
 
   const previousIndex = currentDeviceIndex;
   currentDeviceIndex = (currentDeviceIndex + 1) % videoDeviceIds.length;
@@ -297,17 +304,31 @@ async function flipCamera() {
     cameraStream = null;
   }
 
+  // Stopping a track doesn't guarantee the OS has released the camera
+  // hardware yet - re-requesting it too quickly is a common cause of
+  // intermittent NotReadableError on Android. A short pause fixes most of
+  // that at the cost of a bit of the lag being felt here rather than hidden.
+  await new Promise(r => setTimeout(r, 250));
+
   try {
     await startVideoStream({ deviceId: { exact: videoDeviceIds[currentDeviceIndex] } });
   } catch (err) {
     console.log('Could not switch camera, reverting:', err.message);
     currentDeviceIndex = previousIndex;
+    await new Promise(r => setTimeout(r, 250));
     try {
       await startVideoStream({ deviceId: { exact: videoDeviceIds[currentDeviceIndex] } }); // restore, so the preview isn't left dead
+      document.getElementById('cameraError').textContent = "Couldn't switch cameras — staying on this one.";
+      document.getElementById('cameraError').style.display = 'block';
+      setTimeout(() => { document.getElementById('cameraError').style.display = 'none'; }, 2500);
     } catch (e2) {
       document.getElementById('cameraError').textContent = 'Could not access the camera.';
       document.getElementById('cameraError').style.display = 'block';
     }
+  } finally {
+    isFlipping = false;
+    flipBtn.disabled = false;
+    flipBtn.classList.remove('flipping');
   }
 }
 
