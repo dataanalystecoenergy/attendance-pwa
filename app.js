@@ -260,6 +260,21 @@ async function startVideoStream(constraints) {
   try {
     await video.play(); // some browsers (iOS Safari) don't auto-resume on a srcObject swap
   } catch (e) { /* ignore - the autoplay attribute usually covers this anyway */ }
+  updateMirrorState();
+}
+
+// Mirrors the front-camera preview so it feels like looking in a mirror
+// (what everyone expects from a selfie camera) - the back camera is never
+// mirrored. This only affects the live <video> preview via CSS; the actual
+// captured frame is drawn from the raw, unmirrored video source, so the
+// saved attendance photo is always true-to-camera regardless of preview.
+function updateMirrorState() {
+  const settings = cameraStream?.getVideoTracks()[0]?.getSettings();
+  // Some browsers/devices don't report facingMode - fall back to our own
+  // best guess (accurate on first open, may be stale after a flip on those
+  // browsers, but that's a rare gap, not the common case).
+  const isFront = settings?.facingMode ? settings.facingMode === 'user' : currentFacingMode === 'user';
+  document.getElementById('cameraVideo').classList.toggle('mirrored', isFront);
 }
 
 async function openCamera() {
