@@ -32,6 +32,57 @@ async function apiCall(action, payload) {
 }
 
 // ============================================================
+// Install button — Android/Chrome gets a real one-tap install prompt via
+// beforeinstallprompt; iOS Safari has no such API (Apple has never
+// implemented it), so it gets manual Share -> Add to Home Screen
+// instructions instead. Hidden entirely once already installed.
+// ============================================================
+let deferredInstallPrompt = null;
+
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+const isStandalone =
+  window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+
+function initInstallButton() {
+  const btn = document.getElementById('installBtn');
+  if (isStandalone) return; // already installed - nothing to do
+
+  if (isIOS) {
+    btn.style.display = 'block';
+    btn.addEventListener('click', () => {
+      document.getElementById('iosInstallOverlay').style.display = 'flex';
+    });
+    document.getElementById('iosInstallClose').addEventListener('click', () => {
+      document.getElementById('iosInstallOverlay').style.display = 'none';
+    });
+    return;
+  }
+
+  // Android/Chrome/Edge: Chrome fires this only once its own install
+  // criteria are met (manifest + service worker + HTTPS - all satisfied here).
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    btn.style.display = 'block';
+  });
+
+  btn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    btn.style.display = 'none';
+  });
+
+  window.addEventListener('appinstalled', () => {
+    btn.style.display = 'none';
+    deferredInstallPrompt = null;
+  });
+}
+
+initInstallButton();
+
+// ============================================================
 // Auth — login / logout / session gating
 // ============================================================
 function showLogin() {

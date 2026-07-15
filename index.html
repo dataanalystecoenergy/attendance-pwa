@@ -22,6 +22,24 @@
         <img src="eco-logo.png" alt="EcoEnergy Solar Logo">
     </div>
 
+    <button type="button" id="installBtn" class="install-btn" style="display:none;">📲 Install App</button>
+
+    <!-- iOS has no programmatic install prompt (Apple doesn't support it) -
+         this overlay shows the manual Share -> Add to Home Screen steps instead. -->
+    <div id="iosInstallOverlay" class="install-overlay" style="display:none;">
+        <div class="install-overlay-card">
+            <button type="button" id="iosInstallClose" class="install-overlay-close">✕</button>
+            <h2>Install on iPhone/iPad</h2>
+            <p>iOS requires these steps manually — Apple doesn't allow apps to trigger this automatically:</p>
+            <ol>
+                <li>Make sure you're in <strong>Safari</strong> (this won't work in Chrome on iOS)</li>
+                <li>Tap the <strong>Share</strong> icon <span class="ios-share-icon">⬆️</span> in the bottom toolbar</li>
+                <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                <li>Tap <strong>"Add"</strong> in the top right</li>
+            </ol>
+        </div>
+    </div>
+
     <div class="app-header" id="appHeader" style="display:none;">
         <span class="who" id="whoAmI"></span>
         <button type="button" class="logout-btn" id="logoutBtn">Log out</button>
