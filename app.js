@@ -2,7 +2,7 @@
 // CONFIG — fill this in after deploying Api.gs.txt's doPost() as part of
 // the Apps Script web app (Deploy > Manage deployments > copy the /exec URL).
 // ============================================================
-const API_BASE_URL = 'PASTE_APPS_SCRIPT_EXEC_URL_HERE';
+const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbysjczGw2hPim2ah9M82PqoHPSjOiHeZb7GyQtkYH6UKoqiXCKho0nBeFmmaJj6Z5QDbg/exec';
 
 // ============================================================
 // State
