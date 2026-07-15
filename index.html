@@ -73,10 +73,15 @@
         <div id="statusMessage" class="status-message"></div>
         <form id="attendanceForm">
             <!-- Only shown while login is switched off (REQUIRE_LOGIN = false in app.js) -->
-            <div class="form-group" id="submitterEmailGroup" style="display:none;">
-                <label for="submitterEmail">Email Address <span class="required">*</span></label>
-                <input type="email" id="submitterEmail" name="submitterEmail">
+            <div id="submitterEmailGroup" style="display:none;">
+                <div class="section-label"><span class="section-icon">🔑</span>Your Info</div>
+                <div class="form-group">
+                    <label for="submitterEmail">Email Address <span class="required">*</span></label>
+                    <input type="email" id="submitterEmail" name="submitterEmail">
+                </div>
             </div>
+
+            <div class="section-label"><span class="section-icon">🗓️</span>Shift Details</div>
 
             <div class="form-group">
                 <label for="deploymentDate">Deployment Date <span class="required">*</span></label>
@@ -143,6 +148,8 @@
                 <div id="siteError" class="error-message" style="display: none;">Please select a site.</div>
             </div>
 
+            <div class="section-label"><span class="section-icon">👥</span>Team</div>
+
             <div class="form-group">
                 <label>Agency <span class="required">*</span></label>
                 <div class="purpose-toggle" id="agencyToggle" style="flex-wrap: wrap; gap: 8px;">
@@ -170,6 +177,8 @@
                 <div id="noResults" class="no-results" style="display: none;">No names match your search.</div>
             </div>
 
+            <div class="section-label"><span class="section-icon">✍️</span>Entry Details</div>
+
             <div class="form-group">
                 <label>Purpose of Entry <span class="required">*</span></label>
                 <div class="purpose-toggle">
@@ -185,14 +194,16 @@
                 <textarea id="remarks" name="remarks" placeholder="Remarks here..."></textarea>
             </div>
 
+            <div class="section-label"><span class="section-icon">📷</span>Proof of Attendance</div>
+
             <div class="form-group">
                 <label>Attendance Photo <span class="required">*</span></label>
                 <button type="button" id="openCameraBtn" class="camera-btn">📷 Take Photo</button>
                 <!-- Fallback only if the in-app camera can't be used (no getUserMedia support,
-                     permission denied, etc.) - capture="environment" still nudges the phone's
-                     own camera app to open instead of the gallery, though it's a hint the OS
-                     can ignore, not a hard guarantee. -->
-                <input type="file" id="attendanceImageFallback" accept="image/*" capture="environment" class="file-input" style="display:none;">
+                     permission denied, etc.) - capture="user" still nudges the phone's own
+                     camera app to open on the front camera instead of the gallery, matching
+                     the in-app default, though it's a hint the OS can ignore, not a guarantee. -->
+                <input type="file" id="attendanceImageFallback" accept="image/*" capture="user" class="file-input" style="display:none;">
                 <div id="photoPreviewWrap" style="display:none; margin-top: 10px;">
                     <img id="photoPreview" style="width:100%; border-radius:6px; border:1px solid #ddd;">
                     <button type="button" id="retakePhotoBtn" class="control-btn" style="margin-top:8px; width:100%;">Retake Photo</button>

@@ -193,7 +193,7 @@ let cameraStream = null;
 let capturedImageDataUrl = null;
 let serverTimeOffsetMs = 0; // serverTime - Date.now(), refreshed each time the camera opens
 let clockIntervalId = null;
-let currentFacingMode = 'environment'; // 'environment' = back camera, 'user' = front/selfie
+let currentFacingMode = 'user'; // 'user' = front/selfie (default), 'environment' = back camera
 
 async function syncServerTime() {
   try {
