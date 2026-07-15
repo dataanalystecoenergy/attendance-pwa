@@ -220,12 +220,34 @@ function drawTimestampOverlay(ctx, width, height, text) {
   ctx.fillText(text, 14, height - bannerHeight / 2);
 }
 
-async function startVideoStream() {
-  cameraStream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: { ideal: currentFacingMode } },
-    audio: false,
-  });
-  document.getElementById('cameraVideo').srcObject = cameraStream;
+// facingMode 'ideal' hints are honored inconsistently across real phones
+// (iOS Safari especially) - once a specific camera has been granted, asking
+// for the opposite facingMode again often just re-selects the same device,
+// which looks like the flip button "does nothing". Explicit deviceId
+// selection is far more reliable, so devices are enumerated once permission
+// is granted and the flip button cycles through them by id.
+let videoDeviceIds = [];
+let currentDeviceIndex = 0;
+
+async function refreshVideoDeviceList() {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoDeviceIds = devices.filter(d => d.kind === 'videoinput' && d.deviceId).map(d => d.deviceId);
+  } catch (e) {
+    videoDeviceIds = [];
+  }
+  // Nothing to flip to on a single-camera device - hide the button instead
+  // of leaving one that does nothing.
+  document.getElementById('cameraFlipBtn').style.display = videoDeviceIds.length > 1 ? 'flex' : 'none';
+}
+
+async function startVideoStream(constraints) {
+  cameraStream = await navigator.mediaDevices.getUserMedia({ video: constraints, audio: false });
+  const video = document.getElementById('cameraVideo');
+  video.srcObject = cameraStream;
+  try {
+    await video.play(); // some browsers (iOS Safari) don't auto-resume on a srcObject swap
+  } catch (e) { /* ignore - the autoplay attribute usually covers this anyway */ }
 }
 
 async function openCamera() {
@@ -237,12 +259,19 @@ async function openCamera() {
   }
 
   try {
-    await startVideoStream();
+    // First open: no device list yet (enumerateDevices needs a prior
+    // permission grant to return usable ids), so start with a facingMode hint.
+    await startVideoStream({ facingMode: { ideal: currentFacingMode } });
   } catch (err) {
     console.log('Camera unavailable, falling back to file upload:', err.message);
     useFallbackUpload();
     return;
   }
+
+  await refreshVideoDeviceList();
+  const activeDeviceId = cameraStream.getVideoTracks()[0]?.getSettings().deviceId;
+  const matchedIndex = videoDeviceIds.indexOf(activeDeviceId);
+  currentDeviceIndex = matchedIndex !== -1 ? matchedIndex : 0;
 
   await syncServerTime();
 
@@ -255,11 +284,13 @@ async function openCamera() {
   clockIntervalId = setInterval(updateClock, 1000);
 }
 
-// Swaps front/back and restarts the stream on the same open modal - the
-// clock overlay keeps ticking throughout, only the video source changes.
+// Cycles to the next known camera device. Restarts the stream on the same
+// open modal - the clock overlay keeps ticking throughout.
 async function flipCamera() {
-  const previousFacingMode = currentFacingMode;
-  currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+  if (videoDeviceIds.length < 2) return;
+
+  const previousIndex = currentDeviceIndex;
+  currentDeviceIndex = (currentDeviceIndex + 1) % videoDeviceIds.length;
 
   if (cameraStream) {
     cameraStream.getTracks().forEach(t => t.stop());
@@ -267,12 +298,12 @@ async function flipCamera() {
   }
 
   try {
-    await startVideoStream();
+    await startVideoStream({ deviceId: { exact: videoDeviceIds[currentDeviceIndex] } });
   } catch (err) {
     console.log('Could not switch camera, reverting:', err.message);
-    currentFacingMode = previousFacingMode;
+    currentDeviceIndex = previousIndex;
     try {
-      await startVideoStream(); // restore the previous camera so the preview isn't left dead
+      await startVideoStream({ deviceId: { exact: videoDeviceIds[currentDeviceIndex] } }); // restore, so the preview isn't left dead
     } catch (e2) {
       document.getElementById('cameraError').textContent = 'Could not access the camera.';
       document.getElementById('cameraError').style.display = 'block';
