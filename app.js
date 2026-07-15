@@ -4,6 +4,13 @@
 // ============================================================
 const API_BASE_URL = 'https://script.google.com/macros/s/AKfycbysjczGw2hPim2ah9M82PqoHPSjOiHeZb7GyQtkYH6UKoqiXCKho0nBeFmmaJj6Z5QDbg/exec';
 
+// Login is temporarily switched off - flip back to true to re-enable
+// Employee ID + PIN accounts. While off, the form asks for a free-text
+// name/email instead (same as the original pre-auth app) and submits
+// through the unauthenticated action, so nothing server-side needs to
+// change to turn this back on later.
+const REQUIRE_LOGIN = false;
+
 // ============================================================
 // State
 // ============================================================
@@ -94,8 +101,13 @@ function showLogin() {
 function showForm() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('formContainer').style.display = 'block';
-  document.getElementById('appHeader').style.display = 'flex';
+  // Nothing to show/log out of when login is switched off entirely.
+  document.getElementById('appHeader').style.display = REQUIRE_LOGIN ? 'flex' : 'none';
   document.getElementById('whoAmI').textContent = employee ? `Logged in as ${employee.fullName}` : '';
+  document.getElementById('submitterEmailGroup').style.display = REQUIRE_LOGIN ? 'none' : 'block';
+  document.getElementById('gpsScopeNote').textContent = REQUIRE_LOGIN
+    ? 'GPS is verified for you (the logged-in submitter) only — not individually for every name checked below.'
+    : 'GPS is captured with this submission but not tied to a verified account while login is switched off — not individually for every name checked below.';
 }
 
 function logout() {
@@ -268,13 +280,11 @@ async function openCamera() {
     return;
   }
 
-  await refreshVideoDeviceList();
-  const activeDeviceId = cameraStream.getVideoTracks()[0]?.getSettings().deviceId;
-  const matchedIndex = videoDeviceIds.indexOf(activeDeviceId);
-  currentDeviceIndex = matchedIndex !== -1 ? matchedIndex : 0;
-
-  await syncServerTime();
-
+  // Show the preview the moment the stream is ready - don't make the user
+  // stare at a blank screen while device enumeration and the server-time
+  // round trip finish. The clock overlay starts ticking on local time
+  // immediately and silently corrects itself once syncServerTime resolves
+  // (it reads serverTimeOffsetMs fresh on every tick).
   document.getElementById('cameraModal').style.display = 'flex';
 
   const updateClock = () => {
@@ -282,6 +292,13 @@ async function openCamera() {
   };
   updateClock();
   clockIntervalId = setInterval(updateClock, 1000);
+
+  refreshVideoDeviceList().then(() => {
+    const activeDeviceId = cameraStream?.getVideoTracks()[0]?.getSettings().deviceId;
+    const matchedIndex = videoDeviceIds.indexOf(activeDeviceId);
+    currentDeviceIndex = matchedIndex !== -1 ? matchedIndex : 0;
+  });
+  syncServerTime();
 }
 
 // Cycles to the next known camera device. Restarts the stream on the same
@@ -676,6 +693,17 @@ function validateAgency() {
   return true;
 }
 
+function validateSubmitterEmail() {
+  if (REQUIRE_LOGIN) return true; // identity comes from the session instead
+  const emailField = document.getElementById('submitterEmail');
+  if (!emailField.value || !emailField.checkValidity()) {
+    emailField.style.borderColor = '#dc3545';
+    return false;
+  }
+  emailField.style.borderColor = '';
+  return true;
+}
+
 function getSelectedNames() {
   const checkboxes = document.querySelectorAll('input[name="names"]:checked');
   return Array.from(checkboxes).map(cb => cb.dataset.formName).join(', ');
@@ -709,9 +737,11 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
   const purposeOk = validatePurpose();
   const agencyOk = validateAgency();
   const photoOk = validatePhoto();
+  const emailOk = validateSubmitterEmail();
 
-  if (!namesOk || !purposeOk || !agencyOk || !photoOk) {
-    if (!namesOk) showMessage('Please select at least one name.', 'error');
+  if (!namesOk || !purposeOk || !agencyOk || !photoOk || !emailOk) {
+    if (!emailOk) showMessage('Please enter a valid email address.', 'error');
+    else if (!namesOk) showMessage('Please select at least one name.', 'error');
     else if (!purposeOk) showMessage('Please select a purpose (Time In / Time Out).', 'error');
     else if (!agencyOk) showMessage('Please select an agency.', 'error');
     else showMessage('Please take a photo.', 'error');
@@ -762,10 +792,15 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
       imageType: 'image/jpeg',
       location: currentPosition,
     };
+    if (!REQUIRE_LOGIN) {
+      submissionData.email = formData.get('submitterEmail');
+    }
 
     showMessage('Saving attendance record...', 'loading');
 
-    const result = await apiCall('submitAttendance', { token, data: submissionData });
+    const result = REQUIRE_LOGIN
+      ? await apiCall('submitAttendance', { token, data: submissionData })
+      : await apiCall('submitAttendanceNoAuth', { data: submissionData });
 
     if (!result.success) {
       throw new Error(result.error || 'Submission failed.');
@@ -813,7 +848,7 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
 // ============================================================
 // Init
 // ============================================================
-if (token && employee) {
+if (!REQUIRE_LOGIN || (token && employee)) {
   showForm();
   initAttendanceForm();
 } else {

@@ -3,23 +3,41 @@
 }
 
 body {
-    font-family: Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
     max-width: 800px;
     margin: 0 auto;
     padding: 10px;
-    background: linear-gradient(135deg, #6EACDA 50%, #03346E 100%);
+    background: linear-gradient(160deg, #7fb8e6 0%, #4a7fb5 45%, #03346E 100%);
+    background-attachment: fixed;
     min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea, select {
+    font-family: inherit;
 }
 
 .logo-container {
     text-align: center;
     margin-bottom: 20px;
+    animation: fade-in-down 0.5s ease both;
 }
 
 .logo-container img {
     max-width: 100%;
     height: auto;
     width: min(500px, 90vw);
+    filter: drop-shadow(0 4px 14px rgba(0,0,0,0.25));
+}
+
+@keyframes fade-in-down {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .install-btn {
@@ -96,18 +114,24 @@ body {
 
 .camera-btn {
     width: 100%;
-    background-color: #4285f4;
+    background: linear-gradient(135deg, #5b9bf5, #3367d6);
     color: white;
     border: none;
     padding: 14px;
-    border-radius: 5px;
+    border-radius: 8px;
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
+    box-shadow: 0 4px 14px rgba(51,103,214,0.3);
+    transition: filter 0.12s ease, transform 0.12s ease;
 }
 
 .camera-btn:hover {
-    background-color: #3367d6;
+    filter: brightness(1.06);
+}
+
+.camera-btn:active {
+    transform: scale(0.99);
 }
 
 .camera-modal {
@@ -258,8 +282,10 @@ body {
     margin-top: 15px;
     background: white;
     padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(3,52,110,0.25), 0 2px 8px rgba(0,0,0,0.06);
+    animation: fade-in-up 0.4s ease both;
+    animation-delay: 0.08s;
 }
 
 h1 {
@@ -267,6 +293,7 @@ h1 {
     color: #2e7d32;
     margin-bottom: 30px;
     font-size: 1.5rem;
+    letter-spacing: -0.01em;
 }
 
 .form-group {
@@ -285,10 +312,18 @@ input[type="text"], input[type="email"], input[type="date"], input[type="passwor
 input[inputmode="numeric"], select, textarea {
     width: 100%;
     padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
+    border: 1.5px solid #e2e2e2;
+    border-radius: 8px;
     font-size: 16px;
     box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus, input[type="email"]:focus, input[type="date"]:focus,
+input[type="password"]:focus, input[inputmode="numeric"]:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: #4285f4;
+    box-shadow: 0 0 0 3px rgba(66,133,244,0.15);
 }
 
 textarea {
@@ -302,15 +337,22 @@ textarea {
 }
 
 .submit-btn {
-    background-color: #f39c12;
+    background: linear-gradient(135deg, #f5a623, #e8860b);
     color: white;
     padding: 15px 30px;
     border: none;
-    border-radius: 5px;
+    border-radius: 8px;
     font-size: 16px;
+    font-weight: 700;
     cursor: pointer;
     width: 100%;
     margin-top: 20px;
+    box-shadow: 0 4px 14px rgba(232,134,11,0.35);
+    transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+
+.submit-btn:active {
+    transform: scale(0.99);
 }
 
 .purpose-toggle {
@@ -322,8 +364,8 @@ textarea {
     flex: 1;
     padding: 14px;
     font-size: 16px;
-    border: 2px solid #ddd;
-    border-radius: 5px;
+    border: 2px solid #e2e2e2;
+    border-radius: 8px;
     background-color: white;
     color: #333;
     cursor: pointer;
@@ -336,9 +378,10 @@ textarea {
 }
 
 .purpose-btn.selected {
-    border-color: #f39c12;
-    background-color: #f39c12;
+    border-color: #e8860b;
+    background: linear-gradient(135deg, #f5a623, #e8860b);
     color: white;
+    box-shadow: 0 3px 10px rgba(232,134,11,0.3);
 }
 
 #agencyToggle .agency-btn {
@@ -347,43 +390,50 @@ textarea {
 }
 
 .submit-btn:hover {
-    background-color: #d68a11;
+    filter: brightness(1.06);
+    box-shadow: 0 6px 18px rgba(232,134,11,0.45);
 }
 
 .submit-btn:disabled {
-    background-color: #cccccc;
+    background: #cccccc;
+    box-shadow: none;
     cursor: not-allowed;
 }
 
 .required {
-    color: red;
+    color: #e05a5a;
 }
 
 .status-message {
     text-align: center;
-    padding: 15px;
+    padding: 14px 15px;
     margin: 20px 0;
-    border-radius: 5px;
+    border-radius: 8px;
     display: none;
     font-size: 0.9rem;
+    border-left: 4px solid transparent;
+    animation: fade-in-up 0.25s ease both;
 }
 
 .success {
-    background-color: #d4edda;
-    color: #155724;
+    background-color: #e5f6ea;
+    color: #1e7a37;
     border: 1px solid #c3e6cb;
+    border-left-color: #2e7d32;
 }
 
 .error {
-    background-color: #f8d7da;
-    color: #721c24;
+    background-color: #fdecec;
+    color: #a52a2a;
     border: 1px solid #f5c6cb;
+    border-left-color: #dc3545;
 }
 
 .loading {
-    background-color: #d1ecf1;
+    background-color: #e5f1fb;
     color: #0c5460;
     border: 1px solid #bee5eb;
+    border-left-color: #4285f4;
     margin-bottom: 25px;
 }
 
