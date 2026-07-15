@@ -171,6 +171,176 @@ function tryGetLocation() {
 }
 
 // ============================================================
+// Camera — in-app capture with a server-synced timestamp burned directly
+// into the photo's pixels, so it can't be faked by picking an old photo
+// from the gallery or by changing the phone's clock: the overlay text is
+// computed from the Apps Script server's clock (fetched once per camera
+// session via getServerTime), not the device's.
+// ============================================================
+let cameraStream = null;
+let capturedImageDataUrl = null;
+let serverTimeOffsetMs = 0; // serverTime - Date.now(), refreshed each time the camera opens
+let clockIntervalId = null;
+
+async function syncServerTime() {
+  try {
+    const result = await apiCall('getServerTime', { token });
+    if (result && result.iso) {
+      serverTimeOffsetMs = new Date(result.iso).getTime() - Date.now();
+    }
+  } catch (e) {
+    console.log('Could not sync server time, falling back to device clock:', e.message);
+    serverTimeOffsetMs = 0;
+  }
+}
+
+function syncedNow() {
+  return new Date(Date.now() + serverTimeOffsetMs);
+}
+
+function formatTimestampText(date) {
+  return date.toLocaleString('en-US', {
+    timeZone: 'Asia/Manila',
+    month: 'short', day: 'numeric', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  }) + ' PHT';
+}
+
+function drawTimestampOverlay(ctx, width, height, text) {
+  const bannerHeight = Math.max(36, Math.round(height * 0.07));
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, height - bannerHeight, width, bannerHeight);
+
+  const fontSize = Math.max(14, Math.round(bannerHeight * 0.42));
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillText(text, 14, height - bannerHeight / 2);
+}
+
+async function openCamera() {
+  document.getElementById('cameraError').style.display = 'none';
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    useFallbackUpload();
+    return;
+  }
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false,
+    });
+  } catch (err) {
+    console.log('Camera unavailable, falling back to file upload:', err.message);
+    useFallbackUpload();
+    return;
+  }
+
+  await syncServerTime();
+
+  const video = document.getElementById('cameraVideo');
+  video.srcObject = cameraStream;
+  document.getElementById('cameraModal').style.display = 'flex';
+
+  const updateClock = () => {
+    document.getElementById('cameraClockOverlay').textContent = formatTimestampText(syncedNow());
+  };
+  updateClock();
+  clockIntervalId = setInterval(updateClock, 1000);
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  if (clockIntervalId) {
+    clearInterval(clockIntervalId);
+    clockIntervalId = null;
+  }
+  document.getElementById('cameraModal').style.display = 'none';
+}
+
+function useFallbackUpload() {
+  stopCamera();
+  document.getElementById('attendanceImageFallback').click();
+}
+
+function showPhotoPreview() {
+  document.getElementById('photoPreview').src = capturedImageDataUrl;
+  document.getElementById('photoPreviewWrap').style.display = 'block';
+  document.getElementById('openCameraBtn').style.display = 'none';
+  document.getElementById('photoError').style.display = 'none';
+}
+
+function resetPhoto() {
+  capturedImageDataUrl = null;
+  document.getElementById('photoPreviewWrap').style.display = 'none';
+  document.getElementById('openCameraBtn').style.display = 'block';
+}
+
+function validatePhoto() {
+  if (!capturedImageDataUrl) {
+    document.getElementById('photoError').style.display = 'block';
+    return false;
+  }
+  return true;
+}
+
+document.getElementById('openCameraBtn').addEventListener('click', openCamera);
+document.getElementById('cameraCancelBtn').addEventListener('click', stopCamera);
+document.getElementById('retakePhotoBtn').addEventListener('click', () => {
+  resetPhoto();
+  openCamera();
+});
+
+document.getElementById('cameraShutterBtn').addEventListener('click', () => {
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('captureCanvas');
+  const w = video.videoWidth;
+  const h = video.videoHeight;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, w, h);
+  drawTimestampOverlay(ctx, w, h, formatTimestampText(syncedNow()));
+
+  capturedImageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  stopCamera();
+  showPhotoPreview();
+});
+
+// Fallback path (camera unavailable/denied) - still burns the same
+// server-synced timestamp overlay onto whatever photo gets picked, so the
+// result is consistent no matter which path was used.
+document.getElementById('attendanceImageFallback').addEventListener('change', async function () {
+  const file = this.files && this.files[0];
+  this.value = ''; // allow picking the same file again later
+  if (!file) return;
+
+  await syncServerTime();
+
+  const img = new Image();
+  const reader = new FileReader();
+  reader.onload = () => {
+    img.onload = () => {
+      const canvas = document.getElementById('captureCanvas');
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      drawTimestampOverlay(ctx, canvas.width, canvas.height, formatTimestampText(syncedNow()));
+      capturedImageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      showPhotoPreview();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// ============================================================
 // Attendance form — ported from the original app, google.script.run swapped
 // for apiCall(), email field removed (server derives it from the session).
 // ============================================================
@@ -442,15 +612,6 @@ function showMessage(message, type) {
   }
 }
 
-function convertFileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 function initAttendanceForm() {
   tryGetLocation();
   loadEmployeeData();
@@ -465,11 +626,13 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
   const namesOk = validateNames();
   const purposeOk = validatePurpose();
   const agencyOk = validateAgency();
+  const photoOk = validatePhoto();
 
-  if (!namesOk || !purposeOk || !agencyOk) {
+  if (!namesOk || !purposeOk || !agencyOk || !photoOk) {
     if (!namesOk) showMessage('Please select at least one name.', 'error');
     else if (!purposeOk) showMessage('Please select a purpose (Time In / Time Out).', 'error');
-    else showMessage('Please select an agency.', 'error');
+    else if (!agencyOk) showMessage('Please select an agency.', 'error');
+    else showMessage('Please take a photo.', 'error');
     return;
   }
 
@@ -503,15 +666,6 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
 
   try {
     const formData = new FormData(this);
-    const imageFile = formData.get('attendanceImage');
-
-    if (!imageFile || imageFile.size === 0) {
-      throw new Error('Please upload an image file.');
-    }
-
-    showMessage('Processing image...', 'loading');
-    const imageBase64 = await convertFileToBase64(imageFile);
-
     const selectedNames = getSelectedNames();
 
     const submissionData = {
@@ -521,9 +675,9 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
       agency: formData.get('agency'),
       purpose: formData.get('purpose'),
       remarks: formData.get('remarks'),
-      imageData: imageBase64,
-      imageName: imageFile.name,
-      imageType: imageFile.type,
+      imageData: capturedImageDataUrl,
+      imageName: 'attendance_' + Date.now() + '.jpg',
+      imageType: 'image/jpeg',
       location: currentPosition,
     };
 
@@ -562,6 +716,7 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
     resetSearchResults();
     hideEmployeesMessage();
 
+    resetPhoto();
     tryGetLocation();
 
     submitBtn.disabled = false;

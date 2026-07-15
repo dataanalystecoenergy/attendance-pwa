@@ -177,9 +177,19 @@
             </div>
 
             <div class="form-group">
-                <label for="attendanceImage">Attendance Image <span class="required">*</span></label>
-                <input type="file" id="attendanceImage" name="attendanceImage" accept="image/*" class="file-input" required>
-                <small style="color: #666;">Upload your photo as proof of attendance</small>
+                <label>Attendance Photo <span class="required">*</span></label>
+                <button type="button" id="openCameraBtn" class="camera-btn">📷 Take Photo</button>
+                <!-- Fallback only if the in-app camera can't be used (no getUserMedia support,
+                     permission denied, etc.) - capture="environment" still nudges the phone's
+                     own camera app to open instead of the gallery, though it's a hint the OS
+                     can ignore, not a hard guarantee. -->
+                <input type="file" id="attendanceImageFallback" accept="image/*" capture="environment" class="file-input" style="display:none;">
+                <div id="photoPreviewWrap" style="display:none; margin-top: 10px;">
+                    <img id="photoPreview" style="width:100%; border-radius:6px; border:1px solid #ddd;">
+                    <button type="button" id="retakePhotoBtn" class="control-btn" style="margin-top:8px; width:100%;">Retake Photo</button>
+                </div>
+                <div id="photoError" class="error-message" style="display: none;">Please take a photo.</div>
+                <small style="color: #666;">Timestamp is burned into the photo automatically, synced to the server clock.</small>
             </div>
 
             <!-- Location is mandatory in the app — no silent skip like the old form -->
@@ -189,6 +199,23 @@
 
             <button type="submit" class="submit-btn" id="submitBtn">Submit Attendance</button>
         </form>
+    </div>
+
+    <!-- ================= CAMERA MODAL ================= -->
+    <div id="cameraModal" class="camera-modal" style="display:none;">
+        <div class="camera-modal-inner">
+            <video id="cameraVideo" autoplay playsinline muted></video>
+            <div id="cameraClockOverlay" class="camera-clock-overlay"></div>
+            <div id="cameraError" class="camera-error" style="display:none;"></div>
+
+            <canvas id="captureCanvas" style="display:none;"></canvas>
+
+            <div class="camera-controls">
+                <button type="button" id="cameraCancelBtn" class="camera-cancel-btn">Cancel</button>
+                <button type="button" id="cameraShutterBtn" class="camera-shutter-btn" aria-label="Capture photo"></button>
+                <span class="camera-controls-spacer"></span>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>
