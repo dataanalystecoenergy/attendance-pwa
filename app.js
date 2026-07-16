@@ -45,12 +45,10 @@ async function apiCall(action, payload) {
 // Home Screen instructions instead.
 //
 // Anyone NOT already running the installed (standalone) app is shown a
-// full-screen install gate before the login/attendance form - this can't
-// technically force installation (nothing can), but it puts Install as
-// the only prominent action on first load, with "continue without
-// installing" as a small, easy-to-miss-on-purpose secondary link. The gate
-// reappears on every visit that isn't already standalone, by design - the
-// point is to keep nudging until they actually install.
+// full-screen install gate before the login/attendance form - hard gate,
+// deliberately no escape hatch. On a browser/device where install isn't
+// supported at all, this blocks attendance submission entirely until
+// that's resolved - a known, accepted tradeoff, not an oversight.
 // ============================================================
 let deferredInstallPrompt = null;
 
@@ -106,7 +104,6 @@ function initInstallUI() {
 
   gateBtn.addEventListener('click', triggerInstall);
   pillBtn.addEventListener('click', triggerInstall);
-  document.getElementById('gateContinueBtn').addEventListener('click', proceedPastInstallGate);
   document.getElementById('iosInstallClose').addEventListener('click', () => {
     document.getElementById('iosInstallOverlay').style.display = 'none';
   });

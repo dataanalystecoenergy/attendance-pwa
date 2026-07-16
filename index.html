@@ -31,17 +31,16 @@
 
     <!-- ================= INSTALL GATE ================= -->
     <!-- Shown first, before login/the attendance form, on every visit that
-         isn't already running as the installed app. Install is the only
-         prominent action; "Continue without installing" is a small,
-         deliberately low-key secondary link, not removed entirely, so a
-         browser/device that can't install for some reason never fully
-         blocks someone from clocking in. -->
+         isn't already running as the installed app. Hard gate, deliberately
+         no escape hatch - Install is the only way through. On a
+         browser/device where install isn't supported at all, this blocks
+         attendance submission entirely until that's resolved (known,
+         accepted tradeoff). -->
     <div class="form-container install-gate" id="installGate" style="display:none;">
         <h1>📲 Install the App</h1>
-        <p class="install-gate-copy">Add EcoEnergy Attendance to your home screen for the full app experience — faster loading, camera access, and one-tap access every shift.</p>
+        <p class="install-gate-copy">Add EcoEnergy Attendance to your home screen to continue — faster loading, camera access, and one-tap access every shift.</p>
         <div id="gateInstallStatus" class="status-message"></div>
         <button type="button" id="gateInstallBtn" class="submit-btn">Install App</button>
-        <button type="button" id="gateContinueBtn" class="gate-continue-link">Continue without installing</button>
     </div>
 
     <!-- iOS has no programmatic install prompt (Apple doesn't support it) -
