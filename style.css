@@ -125,6 +125,29 @@ button, input, textarea, select {
     cursor: pointer;
 }
 
+.install-gate {
+    text-align: center;
+}
+
+.install-gate-copy {
+    color: var(--label-text);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin: 0 0 20px;
+}
+
+.gate-continue-link {
+    display: block;
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 0.82rem;
+    text-decoration: underline;
+    padding: 14px 10px 4px;
+    cursor: pointer;
+}
+
 .install-btn:hover {
     background-color: #f0f4fa;
 }

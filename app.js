@@ -39,10 +39,18 @@ async function apiCall(action, payload) {
 }
 
 // ============================================================
-// Install button — Android/Chrome gets a real one-tap install prompt via
-// beforeinstallprompt; iOS Safari has no such API (Apple has never
-// implemented it), so it gets manual Share -> Add to Home Screen
-// instructions instead. Hidden entirely once already installed.
+// Install gate + install button — Android/Chrome gets a real one-tap
+// install prompt via beforeinstallprompt; iOS Safari has no such API
+// (Apple has never implemented it), so it gets manual Share -> Add to
+// Home Screen instructions instead.
+//
+// Anyone NOT already running the installed (standalone) app is shown a
+// full-screen install gate before the login/attendance form - this can't
+// technically force installation (nothing can), but it puts Install as
+// the only prominent action on first load, with "continue without
+// installing" as a small, easy-to-miss-on-purpose secondary link. The gate
+// reappears on every visit that isn't already standalone, by design - the
+// point is to keep nudging until they actually install.
 // ============================================================
 let deferredInstallPrompt = null;
 
@@ -50,44 +58,81 @@ const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
 const isStandalone =
   window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
-function initInstallButton() {
-  const btn = document.getElementById('installBtn');
-  if (isStandalone) return; // already installed - nothing to do
+function showGateStatus(text) {
+  const el = document.getElementById('gateInstallStatus');
+  el.className = 'status-message loading';
+  el.textContent = text;
+  el.style.display = 'block';
+}
 
+async function triggerInstall() {
   if (isIOS) {
-    btn.style.display = 'block';
-    btn.addEventListener('click', () => {
-      document.getElementById('iosInstallOverlay').style.display = 'flex';
-    });
-    document.getElementById('iosInstallClose').addEventListener('click', () => {
-      document.getElementById('iosInstallOverlay').style.display = 'none';
-    });
+    document.getElementById('iosInstallOverlay').style.display = 'flex';
     return;
   }
 
-  // Android/Chrome/Edge: Chrome fires this only once its own install
-  // criteria are met (manifest + service worker + HTTPS - all satisfied here).
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    btn.style.display = 'block';
+  if (!deferredInstallPrompt) {
+    showGateStatus('Install isn’t ready yet - give it a second and try again, or check your browser’s menu for "Add to Home Screen" / "Install app".');
+    return;
+  }
+
+  deferredInstallPrompt.prompt();
+  await deferredInstallPrompt.userChoice;
+  deferredInstallPrompt = null;
+}
+
+function proceedPastInstallGate() {
+  document.getElementById('installGate').style.display = 'none';
+  if (!REQUIRE_LOGIN || (token && employee)) {
+    showForm();
+    initAttendanceForm();
+  } else {
+    showLogin();
+  }
+}
+
+function initInstallUI() {
+  const pillBtn = document.getElementById('installBtn');
+  const gateBtn = document.getElementById('gateInstallBtn');
+
+  if (isStandalone) {
+    // Already installed and running as the app - nothing to gate or nudge.
+    proceedPastInstallGate();
+    return;
+  }
+
+  document.getElementById('installGate').style.display = 'block';
+  pillBtn.style.display = isIOS ? 'block' : 'none'; // Android pill only appears once beforeinstallprompt fires, below
+
+  gateBtn.addEventListener('click', triggerInstall);
+  pillBtn.addEventListener('click', triggerInstall);
+  document.getElementById('gateContinueBtn').addEventListener('click', proceedPastInstallGate);
+  document.getElementById('iosInstallClose').addEventListener('click', () => {
+    document.getElementById('iosInstallOverlay').style.display = 'none';
   });
 
-  btn.addEventListener('click', async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice;
-    deferredInstallPrompt = null;
-    btn.style.display = 'none';
-  });
+  if (!isIOS) {
+    // Android/Chrome/Edge: fires only once the browser's own install
+    // criteria are met (manifest + service worker + HTTPS - all satisfied here).
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      pillBtn.style.display = 'block';
+    });
+  }
 
   window.addEventListener('appinstalled', () => {
-    btn.style.display = 'none';
     deferredInstallPrompt = null;
+    pillBtn.style.display = 'none';
+    // Seamlessly continue into the app once install actually completes,
+    // even if they were sitting on the gate at the time.
+    if (document.getElementById('installGate').style.display !== 'none') {
+      proceedPastInstallGate();
+    }
   });
 }
 
-initInstallButton();
+initInstallUI();
 
 // ============================================================
 // Auth — login / logout / session gating
@@ -269,11 +314,27 @@ async function startVideoStream(constraints) {
 // captured frame is drawn from the raw, unmirrored video source, so the
 // saved attendance photo is always true-to-camera regardless of preview.
 function updateMirrorState() {
-  const settings = cameraStream?.getVideoTracks()[0]?.getSettings();
-  // Some browsers/devices don't report facingMode - fall back to our own
-  // best guess (accurate on first open, may be stale after a flip on those
-  // browsers, but that's a rare gap, not the common case).
-  const isFront = settings?.facingMode ? settings.facingMode === 'user' : currentFacingMode === 'user';
+  const track = cameraStream?.getVideoTracks()[0];
+  const settings = track?.getSettings();
+  let isFront;
+
+  if (settings?.facingMode) {
+    // Authoritative when the browser actually reports it.
+    isFront = settings.facingMode === 'user';
+  } else {
+    // facingMode isn't reported on some devices/browsers, and the
+    // facingMode *constraint* we requested with is only an "ideal" hint -
+    // the browser is free to ignore it and open whichever camera it wants,
+    // so trusting our own requested value here would risk mirroring a back
+    // camera that got opened despite asking for the front one. The device
+    // label (available once permission is granted) is a more reliable
+    // real-world signal than the constraint we sent.
+    const label = (track?.label || '').toLowerCase();
+    if (/front|user|face/.test(label)) isFront = true;
+    else if (/back|rear|environment/.test(label)) isFront = false;
+    else isFront = false; // unknown - default to NOT mirroring, safer than mirroring a back camera by mistake
+  }
+
   document.getElementById('cameraVideo').classList.toggle('mirrored', isFront);
 }
 
@@ -863,12 +924,9 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
 // ============================================================
 // Init
 // ============================================================
-if (!REQUIRE_LOGIN || (token && employee)) {
-  showForm();
-  initAttendanceForm();
-} else {
-  showLogin();
-}
+// Showing the login/attendance form is handled by initInstallUI() above
+// (called on load) - either immediately if already installed (standalone),
+// or once the install gate is dismissed/completed. Nothing to do here.
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

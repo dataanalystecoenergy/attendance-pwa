@@ -29,6 +29,21 @@
 
     <button type="button" id="installBtn" class="install-btn" style="display:none;">📲 Install App</button>
 
+    <!-- ================= INSTALL GATE ================= -->
+    <!-- Shown first, before login/the attendance form, on every visit that
+         isn't already running as the installed app. Install is the only
+         prominent action; "Continue without installing" is a small,
+         deliberately low-key secondary link, not removed entirely, so a
+         browser/device that can't install for some reason never fully
+         blocks someone from clocking in. -->
+    <div class="form-container install-gate" id="installGate" style="display:none;">
+        <h1>📲 Install the App</h1>
+        <p class="install-gate-copy">Add EcoEnergy Attendance to your home screen for the full app experience — faster loading, camera access, and one-tap access every shift.</p>
+        <div id="gateInstallStatus" class="status-message"></div>
+        <button type="button" id="gateInstallBtn" class="submit-btn">Install App</button>
+        <button type="button" id="gateContinueBtn" class="gate-continue-link">Continue without installing</button>
+    </div>
+
     <!-- iOS has no programmatic install prompt (Apple doesn't support it) -
          this overlay shows the manual Share -> Add to Home Screen steps instead. -->
     <div id="iosInstallOverlay" class="install-overlay" style="display:none;">
@@ -51,7 +66,7 @@
     </div>
 
     <!-- ================= LOGIN SCREEN ================= -->
-    <div class="form-container" id="loginScreen">
+    <div class="form-container" id="loginScreen" style="display:none;">
         <h1>Employee Login</h1>
         <div id="loginStatus" class="status-message"></div>
         <form id="loginForm">
