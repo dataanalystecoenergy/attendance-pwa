@@ -2,7 +2,7 @@
 // (it's writing to a live spreadsheet) so POST requests and cross-origin
 // calls to the Apps Script API are never intercepted here — only this
 // site's own static files get cached, for instant repeat loads.
-const CACHE_NAME = 'attendance-shell-v3';
+const CACHE_NAME = 'attendance-shell-v4';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const SHELL_FILES = [
   './app.js',
   './manifest.json',
   './eco-logo-transparent.png',
+  './watermark-logo.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',

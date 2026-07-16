@@ -261,17 +261,39 @@ function formatTimestampText(date) {
   }) + ' PHT';
 }
 
+// Preloaded once on script load - watermarks every captured/fallback-uploaded
+// photo alongside the timestamp. Loading is async, so callers must await
+// watermarkLogoReady before drawing; if it fails to load for any reason,
+// capture still proceeds without it rather than breaking submission.
+const watermarkLogo = new Image();
+let watermarkLogoLoaded = false;
+const watermarkLogoReady = new Promise((resolve) => {
+  watermarkLogo.onload = () => { watermarkLogoLoaded = true; resolve(true); };
+  watermarkLogo.onerror = () => resolve(false);
+});
+watermarkLogo.src = 'watermark-logo.png';
+
 function drawTimestampOverlay(ctx, width, height, text) {
   const bannerHeight = Math.max(36, Math.round(height * 0.07));
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, height - bannerHeight, width, bannerHeight);
+
+  let textX = 14;
+
+  if (watermarkLogoLoaded) {
+    const logoMargin = Math.round(bannerHeight * 0.15);
+    const logoHeight = bannerHeight - logoMargin * 2;
+    const logoWidth = logoHeight * (watermarkLogo.naturalWidth / watermarkLogo.naturalHeight);
+    ctx.drawImage(watermarkLogo, 10, height - bannerHeight + logoMargin, logoWidth, logoHeight);
+    textX = 10 + logoWidth + 12;
+  }
 
   const fontSize = Math.max(14, Math.round(bannerHeight * 0.42));
   ctx.fillStyle = '#ffffff';
   ctx.font = `bold ${fontSize}px Arial, sans-serif`;
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  ctx.fillText(text, 14, height - bannerHeight / 2);
+  ctx.fillText(text, textX, height - bannerHeight / 2);
 }
 
 // facingMode 'ideal' hints are honored inconsistently across real phones
@@ -468,7 +490,7 @@ document.getElementById('retakePhotoBtn').addEventListener('click', () => {
   openCamera();
 });
 
-document.getElementById('cameraShutterBtn').addEventListener('click', () => {
+document.getElementById('cameraShutterBtn').addEventListener('click', async () => {
   const video = document.getElementById('cameraVideo');
   const canvas = document.getElementById('captureCanvas');
   const w = video.videoWidth;
@@ -477,6 +499,7 @@ document.getElementById('cameraShutterBtn').addEventListener('click', () => {
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0, w, h);
+  await watermarkLogoReady; // usually already resolved well before someone taps the shutter
   drawTimestampOverlay(ctx, w, h, formatTimestampText(syncedNow()));
 
   capturedImageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
@@ -497,12 +520,13 @@ document.getElementById('attendanceImageFallback').addEventListener('change', as
   const img = new Image();
   const reader = new FileReader();
   reader.onload = () => {
-    img.onload = () => {
+    img.onload = async () => {
       const canvas = document.getElementById('captureCanvas');
       canvas.width = img.naturalWidth;
       canvas.height = img.naturalHeight;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
+      await watermarkLogoReady;
       drawTimestampOverlay(ctx, canvas.width, canvas.height, formatTimestampText(syncedNow()));
       capturedImageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
       showPhotoPreview();
