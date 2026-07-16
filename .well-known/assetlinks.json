@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.ecoenergy.attendance",
+    "sha256_cert_fingerprints": [
+      "B0:B0:1A:FC:04:39:DC:8E:2C:53:E9:7F:60:D2:36:60:19:95:FC:D7:09:2B:98:15:CD:CD:D4:D4:8A:45:4F:D5"
+    ]
+  }
+}]
