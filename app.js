@@ -147,6 +147,14 @@ function showForm() {
   document.getElementById('appHeader').style.display = REQUIRE_LOGIN ? 'flex' : 'none';
   document.getElementById('whoAmI').textContent = employee ? `Logged in as ${employee.fullName}` : '';
   document.getElementById('submitterEmailGroup').style.display = REQUIRE_LOGIN ? 'none' : 'block';
+  // Remember the last-used email on this device so it doesn't have to be
+  // retyped every visit - still fully editable, e.g. if someone else uses
+  // the same device/browser.
+  if (!REQUIRE_LOGIN) {
+    const savedEmail = localStorage.getItem('attendance_last_email');
+    const emailField = document.getElementById('submitterEmail');
+    if (savedEmail && !emailField.value) emailField.value = savedEmail;
+  }
   document.getElementById('gpsScopeNote').textContent = REQUIRE_LOGIN
     ? 'GPS is verified for you (the logged-in submitter) only — not individually for every name checked below.'
     : 'GPS is captured with this submission but not tied to a verified account while login is switched off — not individually for every name checked below.';
@@ -891,6 +899,7 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
     };
     if (!REQUIRE_LOGIN) {
       submissionData.email = formData.get('submitterEmail');
+      localStorage.setItem('attendance_last_email', submissionData.email);
     }
 
     showMessage('Saving attendance record...', 'loading');
@@ -905,6 +914,9 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
 
     showMessage('Attendance submitted successfully!', 'success');
     document.getElementById('attendanceForm').reset();
+    if (!REQUIRE_LOGIN) {
+      document.getElementById('submitterEmail').value = localStorage.getItem('attendance_last_email') || '';
+    }
 
     const dateWarning = document.getElementById('dateWarning');
     if (dateWarning) dateWarning.remove();
