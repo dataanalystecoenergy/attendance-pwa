@@ -737,10 +737,15 @@ function toggleRsSiteField(siteValue) {
   const group = document.getElementById('rsSiteGroup');
   const isResidential = siteValue === 'Residential';
   group.style.display = isResidential ? 'block' : 'none';
+  document.getElementById('rsSiteError').style.display = 'none';
   if (!isResidential) {
     document.getElementById('rsSite').value = '';
   }
 }
+
+document.getElementById('rsSite').addEventListener('change', function () {
+  if (this.value) document.getElementById('rsSiteError').style.display = 'none';
+});
 
 function setupNameCheckboxHandlers() {
   document.getElementById('clearAllNames').addEventListener('click', function () {
@@ -813,6 +818,22 @@ function validateAgency() {
   return true;
 }
 
+// Not backed by the native `required` attribute - that attribute is not
+// reliably exempted from constraint validation just because the field is
+// hidden (display:none), and some browsers silently block the ENTIRE
+// form's submit (no visible error) when a required-but-hidden field is
+// empty, since they can't show/focus a tooltip on something not rendered.
+// That broke submission for everyone, not just Residential selections.
+function validateRsSite() {
+  const siteName = document.getElementById('siteName').value;
+  if (siteName !== 'Residential') return true;
+  if (!document.getElementById('rsSite').value) {
+    document.getElementById('rsSiteError').style.display = 'block';
+    return false;
+  }
+  return true;
+}
+
 function validateSubmitterEmail() {
   if (REQUIRE_LOGIN) return true; // identity comes from the session instead
   const emailField = document.getElementById('submitterEmail');
@@ -856,14 +877,16 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
   const namesOk = validateNames();
   const purposeOk = validatePurpose();
   const agencyOk = validateAgency();
+  const rsSiteOk = validateRsSite();
   const photoOk = validatePhoto();
   const emailOk = validateSubmitterEmail();
 
-  if (!namesOk || !purposeOk || !agencyOk || !photoOk || !emailOk) {
+  if (!namesOk || !purposeOk || !agencyOk || !rsSiteOk || !photoOk || !emailOk) {
     if (!emailOk) showMessage('Please enter a valid email address.', 'error');
     else if (!namesOk) showMessage('Please select at least one name.', 'error');
     else if (!purposeOk) showMessage('Please select a purpose (Time In / Time Out).', 'error');
     else if (!agencyOk) showMessage('Please select an agency.', 'error');
+    else if (!rsSiteOk) showMessage('Please select an RS Site.', 'error');
     else showMessage('Please take a photo.', 'error');
     return;
   }
