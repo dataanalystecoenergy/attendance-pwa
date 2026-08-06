@@ -718,13 +718,28 @@ function setupSiteSearch() {
 
   select.addEventListener('change', function () {
     searchInput.value = this.value ? this.options[this.selectedIndex].text : '';
+    toggleRsSiteField(this.value);
   });
 
   clearBtn.addEventListener('click', function () {
     searchInput.value = '';
     allOptions.forEach(opt => (opt.hidden = false));
     select.value = '';
+    toggleRsSiteField('');
   });
+}
+
+// Shows/hides the RS Site sub-field for the "Residential" site option -
+// hidden fields are automatically exempt from the browser's native
+// required-field validation, so no extra JS validation needed on top of
+// the required attribute already on #rsSite.
+function toggleRsSiteField(siteValue) {
+  const group = document.getElementById('rsSiteGroup');
+  const isResidential = siteValue === 'Residential';
+  group.style.display = isResidential ? 'block' : 'none';
+  if (!isResidential) {
+    document.getElementById('rsSite').value = '';
+  }
 }
 
 function setupNameCheckboxHandlers() {
@@ -888,6 +903,7 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
     const submissionData = {
       deploymentDate: formData.get('deploymentDate'),
       siteName: formData.get('siteName'),
+      rsSite: formData.get('siteName') === 'Residential' ? formData.get('rsSite') : '',
       names: selectedNames,
       agency: formData.get('agency'),
       purpose: formData.get('purpose'),
