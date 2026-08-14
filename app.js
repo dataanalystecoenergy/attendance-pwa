@@ -498,11 +498,24 @@ document.getElementById('retakePhotoBtn').addEventListener('click', () => {
   openCamera();
 });
 
+// Caps the longest edge so uploads stay small and fast. Full-resolution
+// phone photos are several MB as base64, and that slow upload is exactly
+// what made submissions time out ("Load failed") on weak mobile signal -
+// the row still saved server-side, but the confirmation never made it back.
+// 1600px keeps the person/timestamp/watermark clearly legible for HR.
+const MAX_PHOTO_EDGE = 1600;
+const PHOTO_JPEG_QUALITY = 0.8;
+function scaledPhotoDimensions(srcW, srcH) {
+  const longest = Math.max(srcW, srcH);
+  if (longest <= MAX_PHOTO_EDGE) return { width: srcW, height: srcH };
+  const scale = MAX_PHOTO_EDGE / longest;
+  return { width: Math.round(srcW * scale), height: Math.round(srcH * scale) };
+}
+
 document.getElementById('cameraShutterBtn').addEventListener('click', async () => {
   const video = document.getElementById('cameraVideo');
   const canvas = document.getElementById('captureCanvas');
-  const w = video.videoWidth;
-  const h = video.videoHeight;
+  const { width: w, height: h } = scaledPhotoDimensions(video.videoWidth, video.videoHeight);
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
@@ -510,7 +523,7 @@ document.getElementById('cameraShutterBtn').addEventListener('click', async () =
   await watermarkLogoReady; // usually already resolved well before someone taps the shutter
   drawTimestampOverlay(ctx, w, h, formatTimestampText(syncedNow()));
 
-  capturedImageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  capturedImageDataUrl = canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY);
   stopCamera();
   showPhotoPreview();
 });
@@ -530,13 +543,14 @@ document.getElementById('attendanceImageFallback').addEventListener('change', as
   reader.onload = () => {
     img.onload = async () => {
       const canvas = document.getElementById('captureCanvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+      const { width, height } = scaledPhotoDimensions(img.naturalWidth, img.naturalHeight);
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, width, height);
       await watermarkLogoReady;
-      drawTimestampOverlay(ctx, canvas.width, canvas.height, formatTimestampText(syncedNow()));
-      capturedImageDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      drawTimestampOverlay(ctx, width, height, formatTimestampText(syncedNow()));
+      capturedImageDataUrl = canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY);
       showPhotoPreview();
     };
     img.src = reader.result;
@@ -548,23 +562,47 @@ document.getElementById('attendanceImageFallback').addEventListener('change', as
 // Attendance form — ported from the original app, google.script.run swapped
 // for apiCall(), email field removed (server derives it from the session).
 // ============================================================
+const EMPLOYEE_CACHE_KEY = 'attendance_employees_cache';
+
+function renderEmployeeList(employees) {
+  allEmployees = employees;
+  employeeData = employees;
+  generateCheckboxes(employees);
+  document.getElementById('loadingNames').style.display = 'none';
+  document.getElementById('nameCheckboxes').style.display = 'grid';
+  setupNameCheckboxHandlers();
+  setupSearchFunctionality();
+  setupAgencyFilter();
+}
+
 function loadEmployeeData() {
-  document.getElementById('loadingNames').style.display = 'block';
-  document.getElementById('nameCheckboxes').style.display = 'none';
+  // Show the cached roster instantly if we have one - it changes rarely, so
+  // this avoids blocking the form on a cold Apps Script round-trip every
+  // time it opens. A fresh copy is still fetched below and swapped in when
+  // it lands.
+  let hadCache = false;
+  try {
+    const cached = JSON.parse(localStorage.getItem(EMPLOYEE_CACHE_KEY) || 'null');
+    if (Array.isArray(cached) && cached.length) {
+      renderEmployeeList(cached);
+      hadCache = true;
+    }
+  } catch (e) { /* ignore a malformed cache and just fetch fresh */ }
+
+  if (!hadCache) {
+    document.getElementById('loadingNames').style.display = 'block';
+    document.getElementById('nameCheckboxes').style.display = 'none';
+  }
 
   apiCall('getEmployeeData', { token })
     .then(function (employees) {
       if (employees && employees.error) throw new Error(employees.error);
-      allEmployees = employees;
-      employeeData = employees;
-      generateCheckboxes(employees);
-      document.getElementById('loadingNames').style.display = 'none';
-      document.getElementById('nameCheckboxes').style.display = 'grid';
-      setupNameCheckboxHandlers();
-      setupSearchFunctionality();
-      setupAgencyFilter();
+      if (!Array.isArray(employees)) throw new Error('Unexpected employee data.');
+      localStorage.setItem(EMPLOYEE_CACHE_KEY, JSON.stringify(employees));
+      renderEmployeeList(employees);
     })
     .catch(function (error) {
+      if (hadCache) return; // keep the cached list showing; a background refresh failing isn't worth alarming anyone
       showMessage('Error loading employee data: ' + error.message, 'error');
       document.getElementById('loadingNames').innerHTML = 'Error loading employees. Please refresh the page.';
     });
@@ -987,7 +1025,18 @@ document.getElementById('attendanceForm').addEventListener('submit', async funct
     submitBtn.disabled = false;
     submitBtn.textContent = 'Submit Attendance';
   } catch (error) {
-    showMessage('Error: ' + error.message, 'error');
+    // A raw fetch rejection ("Load failed" / "Failed to fetch") means the
+    // response never came back - but on Apps Script the row has usually
+    // already been written server-side by then, the confirmation just got
+    // dropped over a weak connection. Saying "Error" flat-out makes people
+    // resubmit and create duplicates, so word this case honestly instead.
+    const msg = (error && error.message) || '';
+    const confirmationDropped = /load failed|failed to fetch|networkerror|network request failed/i.test(msg);
+    if (confirmationDropped) {
+      showMessage('Sent, but the confirmation didn\'t come back (weak signal). It was most likely recorded — please check before submitting again to avoid a duplicate.', 'error');
+    } else {
+      showMessage('Error: ' + error.message, 'error');
+    }
     submitBtn.disabled = false;
     submitBtn.textContent = 'Submit Attendance';
   }
