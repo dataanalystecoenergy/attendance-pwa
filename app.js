@@ -735,6 +735,27 @@ function setupPurposeToggle() {
   });
 }
 
+function setupBreakPurposeVisibility() {
+  const select = document.getElementById('siteName');
+  const breakGroup = document.getElementById('breakPurposeGroup');
+  const hiddenInput = document.getElementById('purpose');
+
+  function sync() {
+    const isPagbilao = select.value === 'Pagbilao';
+    breakGroup.style.display = isPagbilao ? 'flex' : 'none';
+    if (!isPagbilao) {
+      const selectedBreakBtn = breakGroup.querySelector('.purpose-btn.selected');
+      if (selectedBreakBtn) {
+        selectedBreakBtn.classList.remove('selected');
+        hiddenInput.value = '';
+      }
+    }
+  }
+
+  select.addEventListener('change', sync);
+  sync();
+}
+
 function setupSiteSearch() {
   const searchInput = document.getElementById('siteSearch');
   const clearBtn = document.getElementById('clearSiteSearch');
@@ -907,6 +928,7 @@ function initAttendanceForm() {
   setDefaultDate();
   setupSiteSearch();
   setupPurposeToggle();
+  setupBreakPurposeVisibility();
 }
 
 document.getElementById('attendanceForm').addEventListener('submit', async function (e) {
