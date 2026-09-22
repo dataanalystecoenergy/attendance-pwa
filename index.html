@@ -23,11 +23,40 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <button type="button" id="memoBtn" class="memo-top-btn">📅 Memo</button>
+
     <div class="logo-container">
         <img src="eco-logo-transparent.png" alt="EcoEnergy Solar Logo">
     </div>
 
     <button type="button" id="installBtn" class="install-btn" style="display:none;">📲 Install App</button>
+
+    <button type="button" id="refreshBtn" class="refresh-fab" title="Refresh" aria-label="Refresh">🔄</button>
+
+    <!-- ================= MEMO CALENDAR ================= -->
+    <div id="memoOverlay" class="install-overlay memo-overlay" style="display:none;">
+        <div class="install-overlay-card memo-overlay-card">
+            <button type="button" id="memoOverlayClose" class="install-overlay-close">✕</button>
+            <h2>📅 Memo</h2>
+
+            <div class="memo-calendar-header">
+                <button type="button" id="memoPrevMonth" class="memo-nav-btn" aria-label="Previous month">‹</button>
+                <span id="memoMonthLabel" class="memo-month-label"></span>
+                <button type="button" id="memoNextMonth" class="memo-nav-btn" aria-label="Next month">›</button>
+            </div>
+
+            <div id="memoCalendarWeekdays" class="memo-calendar-weekdays"></div>
+            <div id="memoCalendarGrid" class="memo-calendar-grid"></div>
+
+            <div id="memoDayPanel" class="memo-day-panel" style="display:none;">
+                <div class="memo-day-panel-header">
+                    <span id="memoDayPanelDate"></span>
+                    <button type="button" id="memoDayPanelBack" class="memo-day-panel-back">‹ Back to calendar</button>
+                </div>
+                <div id="memoDayPanelList" class="memo-day-panel-list"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- ================= INSTALL GATE ================= -->
     <!-- Shown first, before login/the attendance form, on every visit that

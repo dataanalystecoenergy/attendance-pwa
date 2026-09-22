@@ -132,6 +132,147 @@ function initInstallUI() {
 initInstallUI();
 
 // ============================================================
+// Mini top bar — Refresh + Memo calendar. Always available (not gated
+// behind install/login), since it's just a read-only PDF calendar, not
+// part of the attendance submission flow itself.
+// ============================================================
+let memoData = [];
+let memoDatesSet = new Set();
+let memoCalendarMonth = new Date();
+
+function setupMemoFeature() {
+  document.getElementById('refreshBtn').addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  const overlay = document.getElementById('memoOverlay');
+
+  document.getElementById('memoBtn').addEventListener('click', async () => {
+    overlay.style.display = 'flex';
+    showMemoCalendarView();
+    memoCalendarMonth = new Date();
+    renderMemoCalendar();
+    await loadMemos();
+    renderMemoCalendar();
+  });
+
+  document.getElementById('memoOverlayClose').addEventListener('click', () => {
+    overlay.style.display = 'none';
+  });
+
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.style.display = 'none';
+  });
+
+  document.getElementById('memoPrevMonth').addEventListener('click', () => {
+    memoCalendarMonth.setMonth(memoCalendarMonth.getMonth() - 1);
+    renderMemoCalendar();
+  });
+
+  document.getElementById('memoNextMonth').addEventListener('click', () => {
+    memoCalendarMonth.setMonth(memoCalendarMonth.getMonth() + 1);
+    renderMemoCalendar();
+  });
+
+  document.getElementById('memoDayPanelBack').addEventListener('click', showMemoCalendarView);
+}
+
+async function loadMemos() {
+  try {
+    const res = await apiCall('getMemos', {});
+    memoData = res.memos || [];
+    memoDatesSet = new Set(memoData.map(m => m.date));
+  } catch (e) {
+    memoData = [];
+    memoDatesSet = new Set();
+  }
+}
+
+function memoDateKey_(year, month, day) {
+  return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+}
+
+function escapeHtmlMemo_(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function showMemoCalendarView() {
+  document.querySelector('.memo-calendar-header').style.display = 'flex';
+  document.getElementById('memoCalendarWeekdays').style.display = 'grid';
+  document.getElementById('memoCalendarGrid').style.display = 'grid';
+  document.getElementById('memoDayPanel').style.display = 'none';
+}
+
+function renderMemoCalendar() {
+  const weekdaysEl = document.getElementById('memoCalendarWeekdays');
+  const gridEl = document.getElementById('memoCalendarGrid');
+  const labelEl = document.getElementById('memoMonthLabel');
+
+  const year = memoCalendarMonth.getFullYear();
+  const month = memoCalendarMonth.getMonth();
+
+  labelEl.textContent = memoCalendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  if (!weekdaysEl.dataset.rendered) {
+    weekdaysEl.innerHTML = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => '<div>' + d + '</div>').join('');
+    weekdaysEl.dataset.rendered = '1';
+  }
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const now = new Date();
+  const todayKey = memoDateKey_(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let html = '';
+  for (let i = 0; i < firstDay; i++) {
+    html += '<div class="memo-day-cell is-empty"></div>';
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const key = memoDateKey_(year, month, day);
+    const hasMemo = memoDatesSet.has(key);
+    const isToday = key === todayKey;
+    const classes = ['memo-day-cell'];
+    if (hasMemo) classes.push('has-memo');
+    if (isToday) classes.push('is-today');
+    html += '<div class="' + classes.join(' ') + '" data-date="' + key + '">' + day +
+      (hasMemo ? '<span class="memo-dot"></span>' : '') + '</div>';
+  }
+  gridEl.innerHTML = html;
+
+  gridEl.querySelectorAll('.memo-day-cell.has-memo').forEach(cell => {
+    cell.addEventListener('click', () => showMemoDayPanel(cell.dataset.date));
+  });
+}
+
+function showMemoDayPanel(dateKey) {
+  document.querySelector('.memo-calendar-header').style.display = 'none';
+  document.getElementById('memoCalendarWeekdays').style.display = 'none';
+  document.getElementById('memoCalendarGrid').style.display = 'none';
+
+  const panel = document.getElementById('memoDayPanel');
+  panel.style.display = 'block';
+
+  const dateObj = new Date(dateKey + 'T00:00:00');
+  document.getElementById('memoDayPanelDate').textContent =
+    dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+
+  const dayMemos = memoData.filter(m => m.date === dateKey);
+  const listEl = document.getElementById('memoDayPanelList');
+
+  if (dayMemos.length === 0) {
+    listEl.innerHTML = '<div class="memo-day-panel-empty">No memos for this date.</div>';
+    return;
+  }
+
+  listEl.innerHTML = dayMemos.map(m =>
+    '<div class="memo-item"><span class="memo-item-title">' + escapeHtmlMemo_(m.title) + '</span>' +
+    '<a class="memo-item-link" href="' + escapeHtmlMemo_(m.pdfLink) + '" target="_blank" rel="noopener">View PDF</a></div>'
+  ).join('');
+}
+
+setupMemoFeature();
+
+// ============================================================
 // Auth — login / logout / session gating
 // ============================================================
 function showLogin() {
