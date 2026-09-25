@@ -661,7 +661,11 @@ function renderEmployeeList(employees) {
   setupAgencyFilter();
 }
 
-function loadEmployeeData() {
+// Combines what used to be two separate round trips (employee roster +
+// server date) into one apiCall('getInitData', ...) - halves the number of
+// Apps Script executions a page load consumes, which matters when many
+// people open the app at once and compete for the same limited quota.
+function loadInitData() {
   // Show the cached roster instantly if we have one - it changes rarely, so
   // this avoids blocking the form on a cold Apps Script round-trip every
   // time it opens. A fresh copy is still fetched below and swapped in when
@@ -680,17 +684,49 @@ function loadEmployeeData() {
     document.getElementById('nameCheckboxes').style.display = 'none';
   }
 
-  apiCall('getEmployeeData', { token })
-    .then(function (employees) {
-      if (employees && employees.error) throw new Error(employees.error);
+  const dateInput = document.getElementById('deploymentDate');
+
+  apiCall('getInitData', { token })
+    .then(function (result) {
+      if (result && result.error) throw new Error(result.error);
+
+      const employees = result.employees;
       if (!Array.isArray(employees)) throw new Error('Unexpected employee data.');
       localStorage.setItem(EMPLOYEE_CACHE_KEY, JSON.stringify(employees));
       renderEmployeeList(employees);
+
+      const serverDate = result.serverDate;
+      serverToday = serverDate;
+      dateInput.value = serverDate;
+
+      dateInput.addEventListener('change', function () {
+        const existing = document.getElementById('dateWarning');
+        if (this.value !== serverToday) {
+          if (!existing) {
+            const warning = document.createElement('small');
+            warning.id = 'dateWarning';
+            warning.style.color = '#e67e22';
+            warning.style.display = 'block';
+            warning.style.marginTop = '5px';
+            warning.textContent = '⚠ You changed the date from today. Please make sure this is correct before submitting.';
+            dateInput.insertAdjacentElement('afterend', warning);
+          }
+        } else if (existing) {
+          existing.remove();
+        }
+      });
     })
     .catch(function (error) {
-      if (hadCache) return; // keep the cached list showing; a background refresh failing isn't worth alarming anyone
-      showMessage('Error loading employee data: ' + error.message, 'error');
-      document.getElementById('loadingNames').innerHTML = 'Error loading employees. Please refresh the page.';
+      if (!hadCache) {
+        showMessage('Error loading employee data: ' + error.message, 'error');
+        document.getElementById('loadingNames').innerHTML = 'Error loading employees. Please refresh the page.';
+      }
+
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      dateInput.value = `${year}-${month}-${day}`;
     });
 }
 
@@ -1050,8 +1086,7 @@ function showMessage(message, type) {
 
 function initAttendanceForm() {
   tryGetLocation();
-  loadEmployeeData();
-  setDefaultDate();
+  loadInitData();
   setupSiteSearch();
   setupPurposeToggle();
   setupBreakPurposeVisibility();
